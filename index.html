@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>うちの庭 | Panorama Garden</title>
+    <style>
+      :root {
+        --bg: #f4efe6;
+        --panel: rgba(255, 251, 245, 0.88);
+        --panel-strong: rgba(255, 251, 245, 0.96);
+        --line: rgba(63, 86, 63, 0.14);
+        --ink: #233123;
+        --muted: #6b7b68;
+        --accent: #6f8f49;
+        --accent-soft: #d8e5c3;
+        --highlight: #c97a4a;
+        --shadow: 0 20px 40px rgba(47, 57, 42, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(220, 232, 198, 0.85), transparent 28%),
+          linear-gradient(180deg, #f6f0e6 0%, #efe6d6 100%);
+      }
+
+      body {
+        padding: 20px;
+      }
+
+      .app {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        gap: 18px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 10px;
+        padding: 18px 20px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+
+      .eyebrow {
+        margin: 0;
+        font-size: 0.78rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 4rem);
+        font-weight: 500;
+        line-height: 1.05;
+      }
+
+      .lead {
+        margin: 0;
+        max-width: 62ch;
+        color: #4b5b4a;
+        line-height: 1.8;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .pill {
+        border: 1px solid rgba(84, 108, 61, 0.18);
+        background: rgba(255, 255, 255, 0.6);
+        color: var(--ink);
+        padding: 10px 14px;
+        border-radius: 999px;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .pill.active {
+        background: var(--accent);
+        color: #fffdf7;
+      }
+
+      .viewer {
+        position: relative;
+        border-radius: 30px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: rgba(243, 236, 224, 0.9);
+        box-shadow: var(--shadow);
+      }
+
+      .panorama-shell {
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-behavior: smooth;
+        scrollbar-width: none;
+        cursor: grab;
+        touch-action: pan-x;
+      }
+
+      .panorama-shell::-webkit-scrollbar {
+        display: none;
+      }
+
+      .panorama-shell.dragging {
+        cursor: grabbing;
+      }
+
+      .panorama {
+        position: relative;
+        width: min(2200px, 240vw);
+        height: min(72vh, 700px);
+        min-height: 480px;
+        background:
+          linear-gradient(180deg, rgba(255, 231, 188, 0.82) 0%, rgba(247, 218, 160, 0.36) 22%, rgba(178, 212, 165, 0.18) 23%, rgba(111, 153, 91, 0.1) 60%, rgba(90, 130, 76, 0.18) 100%),
+          radial-gradient(circle at 12% 14%, rgba(255, 244, 213, 0.88), transparent 14%),
+          radial-gradient(circle at 88% 12%, rgba(255, 236, 207, 0.72), transparent 12%),
+          linear-gradient(180deg, #bfd8e8 0%, #dbe8f1 16%, #e8d0a9 16%, #b6cf98 55%, #8da86f 100%);
+      }
+
+      .panorama::before,
+      .panorama::after {
+        content: "";
+        position: absolute;
+        inset: auto;
+        pointer-events: none;
+      }
+
+      .panorama::before {
+        left: -4%;
+        right: -4%;
+        bottom: -4%;
+        height: 48%;
+        background:
+          radial-gradient(circle at 6% 58%, #7a985e 0 8%, transparent 8.6%),
+          radial-gradient(circle at 18% 46%, #89a764 0 7%, transparent 7.4%),
+          radial-gradient(circle at 32% 55%, #6f9051 0 9%, transparent 9.6%),
+          radial-gradient(circle at 48% 44%, #829f5d 0 7.5%, transparent 8.2%),
+          radial-gradient(circle at 64% 52%, #6b884b 0 10%, transparent 10.8%),
+          radial-gradient(circle at 82% 46%, #7f9a58 0 8.6%, transparent 9.3%),
+          radial-gradient(circle at 95% 58%, #648247 0 10%, transparent 10.8%);
+        filter: blur(4px);
+        opacity: 0.95;
+      }
+
+      .panorama::after {
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 38%;
+        background:
+          linear-gradient(180deg, rgba(99, 125, 77, 0) 0%, rgba(77, 107, 61, 0.18) 100%),
+          radial-gradient(circle at 12% 90%, rgba(234, 193, 120, 0.48), transparent 12%),
+          radial-gradient(circle at 34% 82%, rgba(216, 144, 155, 0.45), transparent 10%),
+          radial-gradient(circle at 56% 88%, rgba(232, 218, 112, 0.4), transparent 10%),
+          radial-gradient(circle at 76% 84%, rgba(194, 145, 210, 0.35), transparent 9%),
+          radial-gradient(circle at 92% 92%, rgba(236, 176, 132, 0.36), transparent 10%);
+      }
+
+      .hint {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: rgba(35, 49, 35, 0.74);
+        color: #fffdf7;
+        font-size: 0.92rem;
+        letter-spacing: 0.03em;
+        backdrop-filter: blur(6px);
+      }
+
+      .hotspot {
+        position: absolute;
+        width: 28px;
+        height: 28px;
+        margin-left: -14px;
+        margin-top: -14px;
+        border: 0;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 35% 35%, #fff 0 18%, #f8f4ea 18% 35%, #7ea255 35% 100%);
+        box-shadow:
+          0 0 0 5px rgba(255, 251, 245, 0.6),
+          0 12px 18px rgba(34, 55, 29, 0.24);
+        cursor: pointer;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+      }
+
+      .hotspot::after {
+        content: "";
+        position: absolute;
+        inset: 50% auto auto 50%;
+        width: 8px;
+        height: 8px;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        background: #fffdf8;
+      }
+
+      .hotspot:hover,
+      .hotspot:focus-visible {
+        transform: scale(1.08);
+        box-shadow:
+          0 0 0 7px rgba(255, 251, 245, 0.7),
+          0 14px 24px rgba(34, 55, 29, 0.28);
+        outline: none;
+      }
+
+      .hotspot.active {
+        background:
+          radial-gradient(circle at 35% 35%, #fff5ec 0 18%, #f2cfb4 18% 35%, var(--highlight) 35% 100%);
+      }
+
+      .info-card {
+        position: absolute;
+        z-index: 3;
+        min-width: 220px;
+        max-width: 280px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid rgba(84, 108, 61, 0.16);
+        background: var(--panel-strong);
+        box-shadow: 0 18px 34px rgba(44, 56, 38, 0.2);
+        backdrop-filter: blur(10px);
+        transform: translate(-50%, -115%);
+      }
+
+      .info-card::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: -10px;
+        width: 18px;
+        height: 18px;
+        background: var(--panel-strong);
+        border-right: 1px solid rgba(84, 108, 61, 0.16);
+        border-bottom: 1px solid rgba(84, 108, 61, 0.16);
+        transform: translateX(-50%) rotate(45deg);
+      }
+
+      .info-label {
+        margin: 0 0 4px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .info-name {
+        margin: 0;
+        font-size: 1.25rem;
+        line-height: 1.35;
+      }
+
+      .info-note {
+        margin: 8px 0 0;
+        color: #556554;
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+
+      .footer {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .panel {
+        padding: 16px 18px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .panel h2 {
+        margin: 0 0 8px;
+        font-size: 1rem;
+      }
+
+      .panel p {
+        margin: 0;
+        color: #556554;
+        line-height: 1.7;
+        font-size: 0.95rem;
+      }
+
+      @media (max-width: 960px) {
+        body {
+          padding: 14px;
+        }
+
+        .footer {
+          grid-template-columns: 1fr;
+        }
+
+        .panorama {
+          width: 280vw;
+          height: 62vh;
+          min-height: 420px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .hero,
+        .panel {
+          padding: 16px;
+          border-radius: 20px;
+        }
+
+        .controls {
+          gap: 8px;
+        }
+
+        .pill {
+          width: 100%;
+          text-align: center;
+        }
+
+        .hint {
+          width: calc(100% - 24px);
+          text-align: center;
+          font-size: 0.85rem;
+        }
+
+        .info-card {
+          min-width: 190px;
+          max-width: 220px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <section class="hero">
+        <p class="eyebrow">My Garden Panorama</p>
+        <h1>うちの庭を、散歩するように見る。</h1>
+        <p class="lead">
+          横にスクロールしながら庭全体を眺めて、気になる場所をタップすると花や木の名前が出る試作です。
+          実際の写真に差し替えれば、そのまま庭の図鑑アプリの土台になります。
+        </p>
+        <div class="controls">
+          <button class="pill active" data-filter="all">すべて表示</button>
+          <button class="pill" data-filter="flower">花だけ</button>
+          <button class="pill" data-filter="tree">木だけ</button>
+        </div>
+      </section>
+
+      <section class="viewer">
+        <div class="hint">左右にスワイプ / ドラッグして移動。丸をタップすると名前が出ます。</div>
+        <div class="panorama-shell" id="panoramaShell">
+          <div class="panorama" id="panorama">
+            <button class="hotspot" style="left: 14%; top: 72%;" data-id="lavender" aria-label="ラベンダー"></button>
+            <button class="hotspot" style="left: 31%; top: 64%;" data-id="olive" aria-label="オリーブ"></button>
+            <button class="hotspot" style="left: 47%; top: 76%;" data-id="rose" aria-label="バラ"></button>
+            <button class="hotspot" style="left: 63%; top: 58%;" data-id="maple" aria-label="モミジ"></button>
+            <button class="hotspot" style="left: 82%; top: 71%;" data-id="hydrangea" aria-label="アジサイ"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="footer">
+        <article class="panel">
+          <h2>この試作で見たいこと</h2>
+          <p>庭写真を主役にしたまま、情報を出しすぎずに気持ちよく触れるかを確認するための画面です。</p>
+        </article>
+        <article class="panel">
+          <h2>次に差し替えるもの</h2>
+          <p>パノラマ画像、登録スポットの位置、花や木の名前一覧。この3つがあれば実データ版に進めます。</p>
+        </article>
+        <article class="panel">
+          <h2>あとで足せる機能</h2>
+          <p>季節フィルター、メモ表示、音声案内、撮影日ごとの比較など。今の構造なら拡張しやすいです。</p>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const plantData = {
+        lavender: {
+          name: "ラベンダー",
+          type: "flower",
+          note: "やさしい香りの花壇エリア。初期版では名前のみでも十分機能します。"
+        },
+        olive: {
+          name: "オリーブ",
+          type: "tree",
+          note: "庭の中景にあるシンボルツリー想定。あとで樹齢や品種も追加できます。"
+        },
+        rose: {
+          name: "バラ",
+          type: "flower",
+          note: "通路沿いで見つけやすい位置。タップ時に近くへカードを出す見え方にしています。"
+        },
+        maple: {
+          name: "モミジ",
+          type: "tree",
+          note: "季節で表情が変わる木。将来的には季節ごとの写真切り替えと相性がいいです。"
+        },
+        hydrangea: {
+          name: "アジサイ",
+          type: "flower",
+          note: "梅雨時期の見どころ。色の違いなども次段階で持たせられます。"
+        }
+      };
+
+      const panorama = document.getElementById("panorama");
+      const shell = document.getElementById("panoramaShell");
+      const hotspots = [...document.querySelectorAll(".hotspot")];
+      const filterButtons = [...document.querySelectorAll("[data-filter]")];
+      let infoCard = null;
+      let activeId = null;
+
+      function removeCard() {
+        if (infoCard) {
+          infoCard.remove();
+          infoCard = null;
+        }
+        hotspots.forEach((hotspot) => hotspot.classList.remove("active"));
+        activeId = null;
+      }
+
+      function showCard(hotspot, plant) {
+        removeCard();
+
+        hotspot.classList.add("active");
+        activeId = hotspot.dataset.id;
+
+        const card = document.createElement("article");
+        card.className = "info-card";
+        card.innerHTML = `
+          <p class="info-label">${plant.type === "flower" ? "Flower" : "Tree"}</p>
+          <h2 class="info-name">${plant.name}</h2>
+          <p class="info-note">${plant.note}</p>
+        `;
+
+        card.style.left = hotspot.style.left;
+        card.style.top = hotspot.style.top;
+        panorama.appendChild(card);
+        infoCard = card;
+      }
+
+      hotspots.forEach((hotspot) => {
+        hotspot.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const plant = plantData[hotspot.dataset.id];
+          if (!plant) return;
+
+          if (activeId === hotspot.dataset.id) {
+            removeCard();
+            return;
+          }
+
+          showCard(hotspot, plant);
+        });
+      });
+
+      panorama.addEventListener("click", (event) => {
+        if (!event.target.closest(".hotspot")) {
+          removeCard();
+        }
+      });
+
+      filterButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          filterButtons.forEach((item) => item.classList.remove("active"));
+          button.classList.add("active");
+          const filter = button.dataset.filter;
+          removeCard();
+
+          hotspots.forEach((hotspot) => {
+            const plant = plantData[hotspot.dataset.id];
+            const visible = filter === "all" || plant.type === filter;
+            hotspot.hidden = !visible;
+          });
+        });
+      });
+
+      let isDown = false;
+      let startX = 0;
+      let scrollLeft = 0;
+
+      shell.addEventListener("pointerdown", (event) => {
+        isDown = true;
+        shell.classList.add("dragging");
+        startX = event.pageX - shell.offsetLeft;
+        scrollLeft = shell.scrollLeft;
+      });
+
+      shell.addEventListener("pointerleave", () => {
+        isDown = false;
+        shell.classList.remove("dragging");
+      });
+
+      shell.addEventListener("pointerup", () => {
+        isDown = false;
+        shell.classList.remove("dragging");
+      });
+
+      shell.addEventListener("pointermove", (event) => {
+        if (!isDown) return;
+        event.preventDefault();
+        const x = event.pageX - shell.offsetLeft;
+        const walk = (x - startX) * 1.2;
+        shell.scrollLeft = scrollLeft - walk;
+      });
+
+      shell.scrollLeft = shell.scrollWidth * 0.08;
+    </script>
+  </body>
+</html>
