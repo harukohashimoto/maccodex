@@ -332,6 +332,15 @@
         transform: translate(-50%, -108%);
       }
 
+      .spot-editor.place-below {
+        transform: translate(-50%, 18px);
+      }
+
+      .spot-editor,
+      .spot-editor * {
+        min-width: 0;
+      }
+
       .spot-editor h2 {
         margin: 0;
         font-size: 1rem;
@@ -951,9 +960,12 @@
         removeEditor();
 
         const editor = document.createElement("form");
+        const safeX = Math.max(8, Math.min(92, x));
+        const safeY = Math.max(18, Math.min(96, y));
         editor.className = "spot-editor";
-        editor.style.left = `${x}%`;
-        editor.style.top = `${y}%`;
+        editor.classList.toggle("place-below", y < 34);
+        editor.style.left = `${safeX}%`;
+        editor.style.top = `${safeY}%`;
         editor.innerHTML = `
           <h2>${spot ? "スポット編集" : "スポット追加"}</h2>
           <label class="field">
