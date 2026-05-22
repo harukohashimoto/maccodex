@@ -275,7 +275,7 @@
         z-index: 3;
         min-width: 220px;
         max-width: 280px;
-        padding: 14px 16px;
+        padding: 14px 56px 14px 16px;
         border-radius: 18px;
         border: 1px solid rgba(84, 108, 61, 0.16);
         background: var(--panel-strong);
@@ -312,7 +312,7 @@
       }
 
       .info-note {
-        margin: 8px 0 0;
+        margin: 7px 0 0;
         color: #556554;
         line-height: 1.6;
         font-size: 0.95rem;
@@ -368,6 +368,33 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
+      }
+
+      .info-actions {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        display: grid;
+        grid-template-columns: repeat(2, 34px);
+        gap: 6px;
+      }
+
+      .icon-button {
+        display: inline-grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid rgba(84, 108, 61, 0.16);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--ink);
+        font: inherit;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .icon-button.danger {
+        color: #8c3f2e;
       }
 
       .footer {
@@ -519,6 +546,17 @@
         .info-card {
           min-width: 190px;
           max-width: 220px;
+          padding: 12px 50px 12px 14px;
+        }
+
+        .info-actions {
+          grid-template-columns: repeat(2, 32px);
+          right: 8px;
+        }
+
+        .icon-button {
+          width: 32px;
+          height: 32px;
         }
       }
     </style>
@@ -875,9 +913,9 @@
           <p class="info-label">${plant.type === "flower" ? "Flower" : "Tree"}</p>
           <h2 class="info-name">${plant.name}</h2>
           <p class="info-note">${plant.note}</p>
-          <div class="editor-actions">
-            <button class="pill" type="button" data-edit-spot="${plant.id}">編集</button>
-            <button class="pill danger" type="button" data-delete-spot="${plant.id}">削除</button>
+          <div class="info-actions" aria-label="スポット操作">
+            <button class="icon-button" type="button" data-edit-spot="${plant.id}" aria-label="編集" title="編集">✎</button>
+            <button class="icon-button danger" type="button" data-delete-spot="${plant.id}" aria-label="削除" title="削除">×</button>
           </div>
         `;
 
