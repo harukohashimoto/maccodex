@@ -99,6 +99,22 @@
         color: #fffdf7;
       }
 
+      .file-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+
+      .file-action input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        opacity: 0;
+        pointer-events: none;
+      }
+
       .viewer {
         position: relative;
         border-radius: 30px;
@@ -135,6 +151,14 @@
           radial-gradient(circle at 12% 14%, rgba(255, 244, 213, 0.88), transparent 14%),
           radial-gradient(circle at 88% 12%, rgba(255, 236, 207, 0.72), transparent 12%),
           linear-gradient(180deg, #bfd8e8 0%, #dbe8f1 16%, #e8d0a9 16%, #b6cf98 55%, #8da86f 100%);
+      }
+
+      .panorama.has-photo {
+        width: var(--photo-width, min(2200px, 240vw));
+        background-image: var(--garden-photo);
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
       }
 
       .panorama::before,
@@ -174,6 +198,11 @@
           radial-gradient(circle at 56% 88%, rgba(232, 218, 112, 0.4), transparent 10%),
           radial-gradient(circle at 76% 84%, rgba(194, 145, 210, 0.35), transparent 9%),
           radial-gradient(circle at 92% 92%, rgba(236, 176, 132, 0.36), transparent 10%);
+      }
+
+      .panorama.has-photo::before,
+      .panorama.has-photo::after {
+        display: none;
       }
 
       .hint {
@@ -287,6 +316,79 @@
         gap: 14px;
       }
 
+      .photo-dock {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .photo-dock-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .photo-dock-title {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .photo-status {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .photo-list {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(150px, 190px);
+        gap: 10px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+      }
+
+      .photo-card {
+        display: grid;
+        gap: 8px;
+        border: 1px solid rgba(84, 108, 61, 0.16);
+        border-radius: 16px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.62);
+        color: var(--ink);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .photo-card.active {
+        border-color: rgba(111, 143, 73, 0.72);
+        box-shadow: 0 0 0 3px rgba(111, 143, 73, 0.16);
+      }
+
+      .photo-thumb {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border-radius: 12px;
+        background:
+          linear-gradient(180deg, rgba(255, 231, 188, 0.82), rgba(111, 153, 91, 0.2)),
+          linear-gradient(180deg, #bfd8e8 0%, #b6cf98 100%);
+        background-size: cover;
+        background-position: center;
+      }
+
+      .photo-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.92rem;
+      }
+
       .panel {
         padding: 16px 18px;
         border-radius: 22px;
@@ -316,10 +418,19 @@
           grid-template-columns: 1fr;
         }
 
+        .photo-dock-header {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
         .panorama {
           width: 280vw;
           height: 62vh;
           min-height: 420px;
+        }
+
+        .panorama.has-photo {
+          width: var(--photo-width, 280vw);
         }
       }
 
@@ -365,6 +476,15 @@
           <button class="pill active" data-filter="all">すべて表示</button>
           <button class="pill" data-filter="flower">花だけ</button>
           <button class="pill" data-filter="tree">木だけ</button>
+          <label class="pill file-action">
+            写真を追加
+            <input id="photoInput" type="file" accept="image/*" multiple />
+          </label>
+          <label class="pill file-action">
+            いまの写真を差し替え
+            <input id="replaceInput" type="file" accept="image/*" />
+          </label>
+          <button class="pill" id="resetPhoto" type="button">初期写真へ戻す</button>
         </div>
       </section>
 
@@ -379,6 +499,14 @@
             <button class="hotspot" style="left: 82%; top: 71%;" data-id="hydrangea" aria-label="アジサイ"></button>
           </div>
         </div>
+      </section>
+
+      <section class="photo-dock" aria-label="写真一覧">
+        <div class="photo-dock-header">
+          <h2 class="photo-dock-title">写真</h2>
+          <p class="photo-status" id="photoStatus">初期写真を表示中</p>
+        </div>
+        <div class="photo-list" id="photoList"></div>
       </section>
 
       <section class="footer">
@@ -428,10 +556,214 @@
 
       const panorama = document.getElementById("panorama");
       const shell = document.getElementById("panoramaShell");
+      const photoInput = document.getElementById("photoInput");
+      const replaceInput = document.getElementById("replaceInput");
+      const resetPhoto = document.getElementById("resetPhoto");
+      const photoList = document.getElementById("photoList");
+      const photoStatus = document.getElementById("photoStatus");
       const hotspots = [...document.querySelectorAll(".hotspot")];
       const filterButtons = [...document.querySelectorAll("[data-filter]")];
+      const PHOTO_LIBRARY_KEY = "gardenPhotoLibrary";
+      const ACTIVE_PHOTO_KEY = "gardenActivePhoto";
+      const defaultPhoto = {
+        id: "sample",
+        name: "初期写真",
+        kind: "sample",
+        width: 2200,
+        height: 900
+      };
+      let photoLibrary = [defaultPhoto];
+      let activePhotoId = defaultPhoto.id;
+      let activePhotoUrl = null;
       let infoCard = null;
       let activeId = null;
+
+      function openPhotoDb() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open("gardenPhotoStore", 1);
+
+          request.onupgradeneeded = () => {
+            request.result.createObjectStore("photos");
+          };
+
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async function putPhotoBlob(id, blob) {
+        const db = await openPhotoDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("photos", "readwrite");
+          tx.objectStore("photos").put(blob, id);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      async function getPhotoBlob(id) {
+        const db = await openPhotoDb();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("photos", "readonly");
+          const request = tx.objectStore("photos").get(id);
+          request.onsuccess = () => resolve(request.result || null);
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      function loadPhotoLibrary() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(PHOTO_LIBRARY_KEY) || "[]");
+          photoLibrary = [
+            defaultPhoto,
+            ...saved.filter((photo) => photo.id !== defaultPhoto.id)
+          ];
+        } catch {
+          photoLibrary = [defaultPhoto];
+        }
+
+        activePhotoId = localStorage.getItem(ACTIVE_PHOTO_KEY) || defaultPhoto.id;
+        if (!photoLibrary.some((photo) => photo.id === activePhotoId)) {
+          activePhotoId = defaultPhoto.id;
+        }
+      }
+
+      function savePhotoLibrary() {
+        const customPhotos = photoLibrary.filter((photo) => photo.id !== defaultPhoto.id);
+        localStorage.setItem(PHOTO_LIBRARY_KEY, JSON.stringify(customPhotos));
+        localStorage.setItem(ACTIVE_PHOTO_KEY, activePhotoId);
+      }
+
+      function readImageSize(file) {
+        return new Promise((resolve) => {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve({ width: img.naturalWidth || 2200, height: img.naturalHeight || 900 });
+          };
+
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve({ width: 2200, height: 900 });
+          };
+
+          img.src = url;
+        });
+      }
+
+      function getPanoramaWidth(photo) {
+        const ratio = photo.width / Math.max(photo.height, 1);
+        return `${Math.max(1500, Math.min(3600, Math.round(ratio * 760)))}px`;
+      }
+
+      async function renderPhotoList() {
+        photoList.innerHTML = "";
+
+        for (const photo of photoLibrary) {
+          const button = document.createElement("button");
+          const thumb = document.createElement("span");
+          const name = document.createElement("span");
+
+          button.className = `photo-card${photo.id === activePhotoId ? " active" : ""}`;
+          button.type = "button";
+          button.dataset.photoId = photo.id;
+          thumb.className = "photo-thumb";
+          name.className = "photo-name";
+          name.textContent = photo.name;
+
+          if (photo.kind !== "sample") {
+            const blob = await getPhotoBlob(photo.id);
+            if (blob) {
+              thumb.style.backgroundImage = `url("${URL.createObjectURL(blob)}")`;
+            }
+          }
+
+          button.append(thumb, name);
+          photoList.appendChild(button);
+        }
+      }
+
+      async function setActivePhoto(photoId) {
+        const photo = photoLibrary.find((item) => item.id === photoId) || defaultPhoto;
+        activePhotoId = photo.id;
+        removeCard();
+
+        if (activePhotoUrl) {
+          URL.revokeObjectURL(activePhotoUrl);
+          activePhotoUrl = null;
+        }
+
+        if (photo.kind === "sample") {
+          panorama.classList.remove("has-photo");
+          panorama.style.removeProperty("--garden-photo");
+          panorama.style.removeProperty("--photo-width");
+          photoStatus.textContent = "初期写真を表示中";
+        } else {
+          const blob = await getPhotoBlob(photo.id);
+
+          if (!blob) {
+            activePhotoId = defaultPhoto.id;
+            savePhotoLibrary();
+            await setActivePhoto(defaultPhoto.id);
+            return;
+          }
+
+          activePhotoUrl = URL.createObjectURL(blob);
+          panorama.classList.add("has-photo");
+          panorama.style.setProperty("--garden-photo", `url("${activePhotoUrl}")`);
+          panorama.style.setProperty("--photo-width", getPanoramaWidth(photo));
+          photoStatus.textContent = `${photo.name} を表示中`;
+        }
+
+        savePhotoLibrary();
+        await renderPhotoList();
+        shell.scrollLeft = shell.scrollWidth * 0.08;
+      }
+
+      async function addPhotos(files) {
+        const newPhotos = [];
+
+        for (const file of files) {
+          if (!file.type.startsWith("image/")) continue;
+
+          const size = await readImageSize(file);
+          const id = `photo-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          const photo = {
+            id,
+            name: file.name.replace(/\.[^.]+$/, "") || "庭の写真",
+            kind: "custom",
+            width: size.width,
+            height: size.height
+          };
+
+          await putPhotoBlob(id, file);
+          photoLibrary.push(photo);
+          newPhotos.push(photo);
+        }
+
+        if (newPhotos.length > 0) {
+          await setActivePhoto(newPhotos[newPhotos.length - 1].id);
+        }
+      }
+
+      async function replaceCurrentPhoto(file) {
+        if (!file || !file.type.startsWith("image/")) return;
+
+        const currentPhoto = photoLibrary.find((photo) => photo.id === activePhotoId);
+        if (!currentPhoto || currentPhoto.kind === "sample") {
+          await addPhotos([file]);
+          return;
+        }
+
+        const size = await readImageSize(file);
+        currentPhoto.name = file.name.replace(/\.[^.]+$/, "") || currentPhoto.name;
+        currentPhoto.width = size.width;
+        currentPhoto.height = size.height;
+        await putPhotoBlob(currentPhoto.id, file);
+        await setActivePhoto(currentPhoto.id);
+      }
 
       function removeCard() {
         if (infoCard) {
@@ -498,6 +830,26 @@
         });
       });
 
+      photoInput.addEventListener("change", async (event) => {
+        await addPhotos([...event.target.files]);
+        event.target.value = "";
+      });
+
+      replaceInput.addEventListener("change", async (event) => {
+        await replaceCurrentPhoto(event.target.files[0]);
+        event.target.value = "";
+      });
+
+      resetPhoto.addEventListener("click", async () => {
+        await setActivePhoto(defaultPhoto.id);
+      });
+
+      photoList.addEventListener("click", async (event) => {
+        const card = event.target.closest(".photo-card");
+        if (!card) return;
+        await setActivePhoto(card.dataset.photoId);
+      });
+
       let isDown = false;
       let startX = 0;
       let scrollLeft = 0;
@@ -527,7 +879,8 @@
         shell.scrollLeft = scrollLeft - walk;
       });
 
-      shell.scrollLeft = shell.scrollWidth * 0.08;
+      loadPhotoLibrary();
+      setActivePhoto(activePhotoId);
     </script>
   </body>
 </html>
