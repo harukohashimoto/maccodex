@@ -99,6 +99,10 @@
         color: #fffdf7;
       }
 
+      .pill.danger {
+        color: #8c3f2e;
+      }
+
       .file-action {
         display: inline-flex;
         align-items: center;
@@ -139,6 +143,10 @@
 
       .panorama-shell.dragging {
         cursor: grabbing;
+      }
+
+      .panorama-shell.adding-spot {
+        cursor: crosshair;
       }
 
       .panorama {
@@ -310,6 +318,58 @@
         font-size: 0.95rem;
       }
 
+      .spot-editor {
+        position: absolute;
+        z-index: 4;
+        display: grid;
+        gap: 10px;
+        width: min(280px, calc(100vw - 42px));
+        padding: 14px;
+        border: 1px solid rgba(84, 108, 61, 0.16);
+        border-radius: 18px;
+        background: var(--panel-strong);
+        box-shadow: 0 18px 34px rgba(44, 56, 38, 0.22);
+        transform: translate(-50%, -108%);
+      }
+
+      .spot-editor h2 {
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .field {
+        display: grid;
+        gap: 5px;
+      }
+
+      .field span {
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        border: 1px solid rgba(84, 108, 61, 0.2);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--ink);
+        font: inherit;
+        padding: 10px 11px;
+      }
+
+      .field textarea {
+        min-height: 70px;
+        resize: vertical;
+      }
+
+      .editor-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
       .footer {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -476,6 +536,7 @@
           <button class="pill active" data-filter="all">すべて表示</button>
           <button class="pill" data-filter="flower">花だけ</button>
           <button class="pill" data-filter="tree">木だけ</button>
+          <button class="pill" id="spotMode" type="button">スポット追加</button>
           <label class="pill file-action">
             写真を追加
             <input id="photoInput" type="file" accept="image/*" multiple />
@@ -489,15 +550,9 @@
       </section>
 
       <section class="viewer">
-        <div class="hint">左右にスワイプ / ドラッグして移動。丸をタップすると名前が出ます。</div>
+        <div class="hint" id="hint">左右にスワイプ / ドラッグして移動。丸をタップすると名前が出ます。</div>
         <div class="panorama-shell" id="panoramaShell">
-          <div class="panorama" id="panorama">
-            <button class="hotspot" style="left: 14%; top: 72%;" data-id="lavender" aria-label="ラベンダー"></button>
-            <button class="hotspot" style="left: 31%; top: 64%;" data-id="olive" aria-label="オリーブ"></button>
-            <button class="hotspot" style="left: 47%; top: 76%;" data-id="rose" aria-label="バラ"></button>
-            <button class="hotspot" style="left: 63%; top: 58%;" data-id="maple" aria-label="モミジ"></button>
-            <button class="hotspot" style="left: 82%; top: 71%;" data-id="hydrangea" aria-label="アジサイ"></button>
-          </div>
+          <div class="panorama" id="panorama"></div>
         </div>
       </section>
 
@@ -526,45 +581,19 @@
     </main>
 
     <script>
-      const plantData = {
-        lavender: {
-          name: "ラベンダー",
-          type: "flower",
-          note: "やさしい香りの花壇エリア。初期版では名前のみでも十分機能します。"
-        },
-        olive: {
-          name: "オリーブ",
-          type: "tree",
-          note: "庭の中景にあるシンボルツリー想定。あとで樹齢や品種も追加できます。"
-        },
-        rose: {
-          name: "バラ",
-          type: "flower",
-          note: "通路沿いで見つけやすい位置。タップ時に近くへカードを出す見え方にしています。"
-        },
-        maple: {
-          name: "モミジ",
-          type: "tree",
-          note: "季節で表情が変わる木。将来的には季節ごとの写真切り替えと相性がいいです。"
-        },
-        hydrangea: {
-          name: "アジサイ",
-          type: "flower",
-          note: "梅雨時期の見どころ。色の違いなども次段階で持たせられます。"
-        }
-      };
-
       const panorama = document.getElementById("panorama");
       const shell = document.getElementById("panoramaShell");
+      const hint = document.getElementById("hint");
       const photoInput = document.getElementById("photoInput");
       const replaceInput = document.getElementById("replaceInput");
       const resetPhoto = document.getElementById("resetPhoto");
+      const spotMode = document.getElementById("spotMode");
       const photoList = document.getElementById("photoList");
       const photoStatus = document.getElementById("photoStatus");
-      const hotspots = [...document.querySelectorAll(".hotspot")];
       const filterButtons = [...document.querySelectorAll("[data-filter]")];
       const PHOTO_LIBRARY_KEY = "gardenPhotoLibrary";
       const ACTIVE_PHOTO_KEY = "gardenActivePhoto";
+      const SPOT_LIBRARY_KEY = "gardenSpotLibrary";
       const defaultPhoto = {
         id: "sample",
         name: "初期写真",
@@ -575,6 +604,10 @@
       let photoLibrary = [defaultPhoto];
       let activePhotoId = defaultPhoto.id;
       let activePhotoUrl = null;
+      let spotLibrary = {};
+      let activeFilter = "all";
+      let isAddingSpot = false;
+      let spotEditor = null;
       let infoCard = null;
       let activeId = null;
 
@@ -626,12 +659,59 @@
         if (!photoLibrary.some((photo) => photo.id === activePhotoId)) {
           activePhotoId = defaultPhoto.id;
         }
+
+        try {
+          spotLibrary = JSON.parse(localStorage.getItem(SPOT_LIBRARY_KEY) || "{}");
+        } catch {
+          spotLibrary = {};
+        }
+
+        if (!Array.isArray(spotLibrary[defaultPhoto.id])) {
+          spotLibrary[defaultPhoto.id] = [
+            {
+              id: "sample-lavender",
+              name: "ラベンダー",
+              type: "flower",
+              note: "やさしい香りの花壇エリア。初期版では名前のみでも十分機能します。",
+              x: 14,
+              y: 72
+            },
+            {
+              id: "sample-olive",
+              name: "オリーブ",
+              type: "tree",
+              note: "庭の中景にあるシンボルツリー想定。あとで樹齢や品種も追加できます。",
+              x: 31,
+              y: 64
+            },
+            {
+              id: "sample-rose",
+              name: "バラ",
+              type: "flower",
+              note: "通路沿いで見つけやすい位置。タップ時に近くへカードを出す見え方にしています。",
+              x: 47,
+              y: 76
+            }
+          ];
+        }
       }
 
       function savePhotoLibrary() {
         const customPhotos = photoLibrary.filter((photo) => photo.id !== defaultPhoto.id);
         localStorage.setItem(PHOTO_LIBRARY_KEY, JSON.stringify(customPhotos));
         localStorage.setItem(ACTIVE_PHOTO_KEY, activePhotoId);
+      }
+
+      function saveSpotLibrary() {
+        localStorage.setItem(SPOT_LIBRARY_KEY, JSON.stringify(spotLibrary));
+      }
+
+      function getActiveSpots() {
+        if (!Array.isArray(spotLibrary[activePhotoId])) {
+          spotLibrary[activePhotoId] = [];
+        }
+
+        return spotLibrary[activePhotoId];
       }
 
       function readImageSize(file) {
@@ -719,6 +799,7 @@
 
         savePhotoLibrary();
         await renderPhotoList();
+        renderSpots();
         shell.scrollLeft = shell.scrollWidth * 0.08;
       }
 
@@ -765,12 +846,20 @@
         await setActivePhoto(currentPhoto.id);
       }
 
+      function removeEditor() {
+        if (spotEditor) {
+          spotEditor.remove();
+          spotEditor = null;
+        }
+      }
+
       function removeCard() {
         if (infoCard) {
           infoCard.remove();
           infoCard = null;
         }
-        hotspots.forEach((hotspot) => hotspot.classList.remove("active"));
+        removeEditor();
+        document.querySelectorAll(".hotspot").forEach((hotspot) => hotspot.classList.remove("active"));
         activeId = null;
       }
 
@@ -778,7 +867,7 @@
         removeCard();
 
         hotspot.classList.add("active");
-        activeId = hotspot.dataset.id;
+        activeId = plant.id;
 
         const card = document.createElement("article");
         card.className = "info-card";
@@ -786,31 +875,165 @@
           <p class="info-label">${plant.type === "flower" ? "Flower" : "Tree"}</p>
           <h2 class="info-name">${plant.name}</h2>
           <p class="info-note">${plant.note}</p>
+          <div class="editor-actions">
+            <button class="pill" type="button" data-edit-spot="${plant.id}">編集</button>
+            <button class="pill danger" type="button" data-delete-spot="${plant.id}">削除</button>
+          </div>
         `;
 
-        card.style.left = hotspot.style.left;
-        card.style.top = hotspot.style.top;
+        card.style.left = `${plant.x}%`;
+        card.style.top = `${plant.y}%`;
         panorama.appendChild(card);
         infoCard = card;
       }
 
-      hotspots.forEach((hotspot) => {
-        hotspot.addEventListener("click", (event) => {
-          event.stopPropagation();
-          const plant = plantData[hotspot.dataset.id];
-          if (!plant) return;
+      function renderSpots() {
+        document.querySelectorAll(".hotspot").forEach((hotspot) => hotspot.remove());
 
-          if (activeId === hotspot.dataset.id) {
+        getActiveSpots()
+          .filter((spot) => activeFilter === "all" || spot.type === activeFilter)
+          .forEach((spot) => {
+            const hotspot = document.createElement("button");
+            hotspot.className = "hotspot";
+            hotspot.type = "button";
+            hotspot.dataset.id = spot.id;
+            hotspot.style.left = `${spot.x}%`;
+            hotspot.style.top = `${spot.y}%`;
+            hotspot.setAttribute("aria-label", spot.name);
+            panorama.appendChild(hotspot);
+          });
+      }
+
+      function getSpotById(spotId) {
+        return getActiveSpots().find((spot) => spot.id === spotId);
+      }
+
+      function openSpotEditor(x, y, spot = null) {
+        removeCard();
+        removeEditor();
+
+        const editor = document.createElement("form");
+        editor.className = "spot-editor";
+        editor.style.left = `${x}%`;
+        editor.style.top = `${y}%`;
+        editor.innerHTML = `
+          <h2>${spot ? "スポット編集" : "スポット追加"}</h2>
+          <label class="field">
+            <span>名前</span>
+            <input name="name" value="${spot?.name || ""}" placeholder="例: バラ" required />
+          </label>
+          <label class="field">
+            <span>種類</span>
+            <select name="type">
+              <option value="flower"${spot?.type === "flower" ? " selected" : ""}>花</option>
+              <option value="tree"${spot?.type === "tree" ? " selected" : ""}>木</option>
+              <option value="other"${spot?.type === "other" ? " selected" : ""}>その他</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>メモ</span>
+            <textarea name="note" placeholder="咲く時期、気になることなど">${spot?.note || ""}</textarea>
+          </label>
+          <div class="editor-actions">
+            <button class="pill active" type="submit">保存</button>
+            <button class="pill" type="button" data-cancel-editor>閉じる</button>
+          </div>
+        `;
+
+        editor.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const form = new FormData(editor);
+          const spots = getActiveSpots();
+          const nextSpot = {
+            id: spot?.id || `spot-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            name: String(form.get("name") || "").trim() || "名前未設定",
+            type: String(form.get("type") || "other"),
+            note: String(form.get("note") || "").trim(),
+            x,
+            y
+          };
+
+          if (spot) {
+            const index = spots.findIndex((item) => item.id === spot.id);
+            if (index >= 0) spots[index] = nextSpot;
+          } else {
+            spots.push(nextSpot);
+          }
+
+          saveSpotLibrary();
+          removeEditor();
+          renderSpots();
+        });
+
+        editor.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (event.target.closest("[data-cancel-editor]")) {
+            removeEditor();
+          }
+        });
+
+        panorama.appendChild(editor);
+        spotEditor = editor;
+        editor.querySelector("input").focus();
+      }
+
+      function deleteSpot(spotId) {
+        spotLibrary[activePhotoId] = getActiveSpots().filter((spot) => spot.id !== spotId);
+        saveSpotLibrary();
+        removeCard();
+        renderSpots();
+      }
+
+      function setSpotMode(enabled) {
+        isAddingSpot = enabled;
+        spotMode.classList.toggle("active", isAddingSpot);
+        shell.classList.toggle("adding-spot", isAddingSpot);
+        hint.textContent = isAddingSpot
+          ? "追加したい場所をタップすると、名前とメモを登録できます。"
+          : "左右にスワイプ / ドラッグして移動。丸をタップすると名前が出ます。";
+      }
+
+      panorama.addEventListener("click", (event) => {
+        const hotspot = event.target.closest(".hotspot");
+        const editButton = event.target.closest("[data-edit-spot]");
+        const deleteButton = event.target.closest("[data-delete-spot]");
+
+        if (editButton) {
+          event.stopPropagation();
+          const spot = getSpotById(editButton.dataset.editSpot);
+          if (spot) openSpotEditor(spot.x, spot.y, spot);
+          return;
+        }
+
+        if (deleteButton) {
+          event.stopPropagation();
+          deleteSpot(deleteButton.dataset.deleteSpot);
+          return;
+        }
+
+        if (hotspot) {
+          event.stopPropagation();
+          const spot = getSpotById(hotspot.dataset.id);
+          if (!spot) return;
+
+          if (activeId === spot.id) {
             removeCard();
             return;
           }
 
-          showCard(hotspot, plant);
-        });
-      });
+          showCard(hotspot, spot);
+          return;
+        }
 
-      panorama.addEventListener("click", (event) => {
-        if (!event.target.closest(".hotspot")) {
+        if (isAddingSpot) {
+          const rect = panorama.getBoundingClientRect();
+          const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+          const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
+          openSpotEditor(Number(x.toFixed(2)), Number(y.toFixed(2)));
+          return;
+        }
+
+        if (!event.target.closest(".spot-editor")) {
           removeCard();
         }
       });
@@ -819,15 +1042,15 @@
         button.addEventListener("click", () => {
           filterButtons.forEach((item) => item.classList.remove("active"));
           button.classList.add("active");
-          const filter = button.dataset.filter;
+          activeFilter = button.dataset.filter;
           removeCard();
-
-          hotspots.forEach((hotspot) => {
-            const plant = plantData[hotspot.dataset.id];
-            const visible = filter === "all" || plant.type === filter;
-            hotspot.hidden = !visible;
-          });
+          renderSpots();
         });
+      });
+
+      spotMode.addEventListener("click", () => {
+        setSpotMode(!isAddingSpot);
+        removeCard();
       });
 
       photoInput.addEventListener("change", async (event) => {
@@ -855,6 +1078,7 @@
       let scrollLeft = 0;
 
       shell.addEventListener("pointerdown", (event) => {
+        if (isAddingSpot || event.target.closest(".hotspot, .spot-editor")) return;
         isDown = true;
         shell.classList.add("dragging");
         startX = event.pageX - shell.offsetLeft;
